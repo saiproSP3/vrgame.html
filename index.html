@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>VR Math Lightsaber Game</title>
+    <meta name="description" content="VR Math Lightsaber Game">
+    <!-- Include A-Frame Library for VR -->
+    <script src="https://aframe.io"></script>
+    <style>
+      /* Grade Selection Screen overlay before entering VR */
+      #setup-ui {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 999;
+        background: rgba(0, 0, 0, 0.85);
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        text-align: center;
+        font-family: Arial, sans-serif;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        font-size: 16px;
+        cursor: pointer;
+        background: #00ffcc;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+      }
+      button:hover { background: #00b399; }
+      input {
+        padding: 10px;
+        font-size: 16px;
+        width: 60px;
+        text-align: center;
+        margin-bottom: 15px;
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- 2D Setup Setup Setup Screen before VR starts -->
+    <div id="setup-ui">
+      <h2>Math Lightsaber VR</h2>
+      <p>Topic: Integers</p>
+      <label for="grade-input">Enter Grade (1-9): </label><br>
+      <input type="number" id="grade-input" min="1" max="9" value="1"><br>
+      <button onclick="startGame()">START GAME & ENTER VR</button>
+    </div>
+
+    <!-- VR Scene -->
+    <a-scene style="display:none;">
+      
+      <!-- Sky / Environment -->
+      <a-sky color="#050515"></a-sky>
+      <a-grid></a-grid>
+
+      <!-- The Core Game Manager Script -->
+      <script>
+        let currentGrade = 1;
+        let score = 0;
+        let activeQuestion = {};
+        
+        function startGame() {
+          currentGrade = parseInt(document.getElementById('grade-input').value) || 1;
+          document.getElementById('setup-ui').style.display = 'none';
+          document.querySelector('a-scene').style.display = 'block';
+          
+          // Trigger WebXR VR mode
+          setTimeout(() => {
+            document.querySelector('a-scene').enterVR();
+            generateQuestion();
+          }, 200);
+        }
+
+        // Generate Math questions based on chosen difficulty
+        function generateQuestion() {
+          let num1 = Math.floor(Math.random() * (currentGrade * 3)) + 1;
+          let num2 = Math.floor(Math.random() * (currentGrade * 3)) + 1;
+          
+          // Mix in negative numbers for higher grades
+          if (currentGrade >= 3) {
+            if (Math.random() > 0.5) num1 = -num1;
+            if (Math.random() > 0.5) num2 = -num2;
+          }
+
+          let isAddition = Math.random() > 0.5;
+          let questionText = "";
+          let correctAnswer = 0;
+
+          if (isAddition) {
+            questionText = `${num1} + (${num2})`;
+            correctAnswer = num1 + num2;
+          } else {
+            questionText = `${num1} - (${num2})`;
+            correctAnswer = num1 - num2;
+          }
+
+          let wrongAnswer = correctAnswer + (Math.random() > 0.5 ? 2 : -2);
+          if (wrongAnswer === correctAnswer) wrongAnswer += 1;
+
+          activeQuestion = {
+            text: questionText,
+            correct: correctAnswer,
+            wrong: wrongAnswer
+          };
+
+          // Assign text values to VR Elements
+          document.getElementById('question-display').setAttribute('value', `Question: ${activeQuestion.text}`);
+          
+          // Randomly assign left or right side to be the WRONG answer (the one to slice!)
+          let wrongOnLeft = Math.random() > 0.5;
+          
+          let leftTarget = document.getElementById('target-left');
+          let rightTarget = document.getElementById('target-right');
+
+          leftTarget.setAttribute('value', wrongOnLeft ? activeQuestion.wrong : activeQuestion.correct);
+          leftTarget.dataset.isWrong = wrongOnLeft ? "true" : "false";
+
+          rightTarget.setAttribute('value', wrongOnLeft ? activeQuestion.correct : activeQuestion.wrong);
+          rightTarget.dataset.isWrong = wrongOnLeft ? "false" : "true";
+        }
+
+        // Function called when user slices/clicks a target
+        function targetSliced(isLeft) {
+          let target = document.getElementById(isLeft ? 'target-left' : 'target-right');
+          let isWrongAnswer = target.dataset.isWrong === "true";
+
+          if (isWrongAnswer) {
+            score += 10;
+            document.getElementById('score-display').setAttribute('value', `Score: ${score}`);
+            // Flash green for correct slice choice
+            document.getElementById('score-display').setAttribute('color', '#00ff00');
+          } else {
+            score -= 5;
+            document.getElementById('score-display').setAttribute('value', `Score: ${score}`);
+            // Flash red for slicing the correct answer
+            document.getElementById('score-display').setAttribute('color', '#ff0000');
+          }
+          
+          setTimeout(() => { document.getElementById('score-display').setAttribute('color', '#ffffff'); }, 500);
+          generateQuestion();
+        }
+      </script>
+
+      <!-- UI Texts in VR space -->
+      <a-text id="question-display" value="Loading..." position="0 2.5 -3" align="center" width="6" color="#ffffff"></a-text>
+      <a-text id="score-display" value="Score: 0" position="0 3 -3" align="center" width="4" color="#ffffff"></a-text>
+      <a-text value="SLICE THE WRONG ANSWER!" position="0 3.5 -3" align="center" width="3" color="#ffcc00"></a-text>
+
+      <!-- Targets (Orbs containing answers) -->
+      <!-- Left Target Orb -->
+      
+        <a-sphere radius="0.4" color="#ff0055" opacity="0.6" class="sliceable" onclick="targetSliced(true)"></a-sphere>
+        <a-text id="target-left" value="" align="center" position="0 0 0" width="5"></a-text>
+      
+
+      <!-- Right Target Orb -->
+      
+        <a-sphere radius="0.4" color="#0088ff" opacity="0.6" class="sliceable" onclick="targetSliced(false)"></a-sphere>
+        <a-text id="target-right" value="" align="center" position="0 0 0" width="5"></a-text>
+      
+
+      <!-- Player Rig / Camera + Gaze Laser Pointer -->
+      
+        <a-camera>
+          <!-- Center Ring Reticle acts as the lightsaber aim point -->
+          <a-cursor 
+            id="lightsaber-cursor"
+            animation__click="property: scale; startEvents: click; easing: easeInCubic; dur: 150; from: 0.1 0.1 0.1; to: 1 1 1"
+            animation__fusing="property: scale; startEvents: fusing; easing: easeInCubic; dur: 1500; from: 1 1 1; to: 0.1 0.1 0.1"
+            event-set__mouseenter="_event: mouseenter; color: #00ffcc"
+            event-set__mouseleave="_event: mouseleave; color: #ff0000"
+            color="#ff0000">
+          </a-cursor>
+          
+          <!-- Decorative Visual Lightsaber blade extending from camera perspective -->
+          <a-cylinder position="0.3 -0.4 -1" rotation="45 0 0" radius="0.02" height="1" color="#00ffcc" material="emissive: #00ffcc; emissiveIntensity: 2"></a-cylinder>
+        </a-camera>
+      
+
+    </a-scene>
+  </body>
+</html>
